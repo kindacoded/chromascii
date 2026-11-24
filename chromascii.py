@@ -1,7 +1,8 @@
-"""Play any video or GIF as full-color ASCII art in your terminal.
+"""Play any video or GIF as full-color ASCII art in your terminal, or export it as a video.
 
     python chromascii.py clip.mp4
     python chromascii.py dance.gif --mode blocks --loop
+    python chromascii.py clip.mp4 -o clip_ascii.mp4
 """
 import argparse
 import json
@@ -53,12 +54,17 @@ def frames(path, w, h, fps):
         proc.kill()
 
 
-def render_ascii(img, charset, boost=1.0, bg=0.0):
-    """bg > 0 fills each cell's background with a dimmed copy of its color, so gaps between characters aren't black."""
+def char_index(img, n, boost=1.0):
+    """Index into an n-character charset for every pixel, by brightness."""
     lum = img @ np.array([0.299, 0.587, 0.114])
     lo, hi = np.percentile(lum, [2, 98])  # stretch contrast per frame so dull footage still uses the whole charset
     norm = np.clip((lum - lo) / max(hi - lo, 1) * boost, 0, 1)
-    chars = np.array(list(charset))[(norm * (len(charset) - 1)).round().astype(int)]
+    return (norm * (n - 1)).round().astype(int)
+
+
+def render_ascii(img, charset, boost=1.0, bg=0.0):
+    """bg > 0 fills each cell's background with a dimmed copy of its color, so gaps between characters aren't black."""
+    chars = np.array(list(charset))[char_index(img, len(charset), boost)]
     lines = []
     if bg > 0:
         back = (img * bg).astype(np.uint8)
@@ -82,6 +88,76 @@ def render_blocks(img):
     return "\x1b[0m\n".join(lines) + "\x1b[0m"
 
 
+FONTS = ["consola.ttf", "DejaVuSansMono.ttf", "Menlo.ttc", "cour.ttf"]
+
+
+def glyph_atlas(charset, size=14):
+    """Pre-draw every character once as a (len, cell_h, cell_w) coverage mask, so frames are pure numpy."""
+    from PIL import Image, ImageDraw, ImageFont
+    font = None
+    for name in FONTS:
+        try:
+            font = ImageFont.truetype(name, size)
+            break
+        except OSError:
+            pass
+    font = font or ImageFont.load_default(size)
+    cw, ch = round(font.getlength("M")), round(size * 1.2) // 2 * 2  # even height so blocks split cleanly
+    ascent, descent = font.getmetrics()
+    atlas = np.zeros((len(charset), ch, cw), np.float32)
+    for i, c in enumerate(charset):
+        im = Image.new("L", (cw, ch))
+        ImageDraw.Draw(im).text((0, (ch - ascent - descent) // 2), c, font=font, fill=255)
+        atlas[i] = np.asarray(im, np.float32) / 255
+    return atlas, cw, ch
+
+
+def image_ascii(img, atlas, boost=1.0, bg=0.0):
+    """Frame -> RGB picture of colored characters, (h*cell_h, w*cell_w, 3)."""
+    h, w = img.shape[:2]
+    _, ch, cw = atlas.shape
+    mask = atlas[char_index(img, len(atlas), boost)][..., None]  # (h, w, ch, cw, 1)
+    fg = img[:, :, None, None, :].astype(np.float32)
+    out = fg * bg + fg * (1 - bg) * mask
+    return out.transpose(0, 2, 1, 3, 4).reshape(h * ch, w * cw, 3).astype(np.uint8)
+
+
+def image_blocks(img, cw, ch):
+    """Frame -> RGB picture where every pixel is half a character cell."""
+    return np.repeat(np.repeat(img, ch // 2, 0), cw, 1)
+
+
+def export(a, charset, src_w, src_h, fps):
+    atlas, cw, ch = glyph_atlas(charset if a.mode == "ascii" else " ", a.font_size)
+    per_row = 2 if a.mode == "blocks" else 1
+    w = a.width or max(20, src_w // cw)  # default: about as wide as the source video
+    h = max(per_row, round(src_h / src_w * w * cw / ch * per_row))
+    h -= h % per_row
+    out_w, out_h = w * cw, h // per_row * ch
+    gif = a.output.lower().endswith(".gif")
+    cmd = ["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{out_w}x{out_h}",
+           "-r", str(fps), "-i", "-"]
+    if gif:
+        cmd += ["-vf", "split[a][b];[a]palettegen[p];[b][p]paletteuse", a.output]
+    else:
+        cmd += ["-i", a.input, "-map", "0:v", "-map", "1:a?", "-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2",
+                "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18", "-c:a", "aac", "-shortest", a.output]
+    enc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+    n = 0
+    try:
+        for img in frames(a.input, w, h, fps):
+            pic = image_blocks(img, cw, ch) if a.mode == "blocks" else image_ascii(img, atlas, a.boost, a.bg)
+            enc.stdin.write(pic.tobytes())
+            n += 1
+            print(f"\rframe {n}", end="", file=sys.stderr, flush=True)
+    finally:
+        enc.stdin.close()
+        enc.wait()
+    if enc.returncode != 0 or n == 0:
+        sys.exit("\nExport failed")
+    print(f"\nSaved {a.output} ({out_w}x{out_h}, {n} frames, {w} characters wide)", file=sys.stderr)
+
+
 def main():
     ap = argparse.ArgumentParser(description="Play a video or GIF as colored ASCII art.")
     ap.add_argument("input", help="video or GIF file (anything ffmpeg can read)")
@@ -90,7 +166,9 @@ def main():
                     help="ascii = colored characters, blocks = half-block pixels (sharper)")
     ap.add_argument("-c", "--charset", default="classic",
                     help=f"one of {', '.join(CHARSETS)}, or your own characters from dark to bright")
-    ap.add_argument("--fps", type=float, help="playback frame rate (default: the video's, max 30)")
+    ap.add_argument("--fps", type=float, help="frame rate (default: the video's, max 30)")
+    ap.add_argument("-o", "--output", help="save as .mp4 (with the original audio) or .gif instead of playing")
+    ap.add_argument("--font-size", type=int, default=14, help="export only: character size in pixels")
     ap.add_argument("--loop", action="store_true", help="loop until Ctrl+C")
     ap.add_argument("--boost", type=float, default=1.0, help="brighten the character choice, e.g. 1.5")
     ap.add_argument("--bg", type=float, default=0.35,
@@ -107,6 +185,8 @@ def main():
 
     src_w, src_h, src_fps = probe(a.input)
     fps = a.fps or min(src_fps, 30)
+    if a.output:
+        return export(a, charset, src_w, src_h, fps)
     cols, rows = shutil.get_terminal_size((100, 30))
     w = a.width or cols
     # pixel rows per text row: 1 for ascii, 2 for blocks

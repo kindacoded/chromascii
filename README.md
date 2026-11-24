@@ -9,7 +9,7 @@
   <br>
 </h1>
 
-<h4 align="center">Play any video or GIF as full-color ASCII art, live in your terminal.
+<h4 align="center">Play any video or GIF as full-color ASCII art, live in your terminal, or export it as an MP4 with the original sound.
 </h4>
 
 <p align="center">
@@ -48,15 +48,16 @@ ones (`. : -`), and contrast is stretched per frame, so even dull footage uses t
 | Auto-fit to terminal width and height | ✅ Works |
 | Transparent GIFs | ✅ Shown on black |
 | Real-time playback, looping, custom FPS | ✅ Works, ~9 ms to draw a 150×55 frame |
-| Audio | ❌ Not played; picture only |
-| Saving the ASCII version as a video file | ❌ Not yet |
+| Export to MP4 with the original audio (`-o out.mp4`) | ✅ Works, about real time (10 s clip in 9 s) |
+| Export to GIF (`-o out.gif`) | ✅ Works |
+| Audio during terminal playback | ❌ Not played; picture only (exports keep it) |
 | Terminals without true color (old `conhost`, some SSH clients) | ⚠️ Colors are approximated or missing. Use [Windows Terminal](https://aka.ms/terminal) |
 
 ## How to install
 
 **Prerequisites:**
 
-- [Python 3.8+](https://www.python.org/downloads/) (tick "Add python.exe to PATH").
+- [Python 3.9+](https://www.python.org/downloads/) (tick "Add python.exe to PATH").
 - [ffmpeg](https://ffmpeg.org/download.html) on PATH. On Windows: `winget install Gyan.FFmpeg`. On macOS:
   `brew install ffmpeg`. On Linux: your package manager.
 - A terminal with **true color**: Windows Terminal, iTerm2, Kitty, WezTerm, Alacritty, GNOME Terminal and most
@@ -80,7 +81,13 @@ python chromascii.py clip.mp4                  # colored ASCII, fits your termin
 python chromascii.py clip.mp4 -m blocks        # half-block pixels, sharpest
 python chromascii.py clip.mp4 -c dense         # 70-character set, most detail
 python chromascii.py clip.mp4 --loop -w 160    # loop it, 160 characters wide
+python chromascii.py clip.mp4 -o ascii.mp4     # save as a video, with sound
+python chromascii.py clip.mp4 -m blocks -o pixel.gif
 ```
+
+Exports are the same size as the source video by default (one character per 8 pixels), so a vertical
+TikTok or Reel comes out vertical and ready to post. Use `-w` for more or fewer characters and `--font-size`
+for bigger or smaller ones.
 
 ## Recipes
 
@@ -106,6 +113,8 @@ python chromascii.py clip.mp4 --loop -w 160    # loop it, 160 characters wide
 | `--boost` | `1.0` | Pushes character choice brighter. Try `1.3`–`1.5` for dark clips |
 | `--fps` | video's, max 30 | Playback frame rate |
 | `--loop` | off | Repeat until `Ctrl` + `C` |
+| `-o`, `--output` | | Save to `.mp4` (H.264 + original audio) or `.gif` instead of playing |
+| `--font-size` | `14` | Export only: character size in pixels |
 
 `-m blocks` ignores `--charset`, `--bg` and `--boost`: every cell is two pixels.
 
@@ -122,6 +131,7 @@ video ─► ffprobe (size, fps) ─► ffmpeg (fps + resize, raw RGBA) ─► n
 | Decode | `ffmpeg` resamples to the playback FPS, resizes with area averaging and streams raw RGBA frames into Python, so long videos never sit in memory |
 | Map | Luminance (`0.299 R + 0.587 G + 0.114 B`) is contrast-stretched between the frame's 2nd and 98th percentile and picks a character; transparent pixels go black |
 | Draw | Each cell gets `ESC[38;2;R;G;Bm` for the character and `ESC[48;2;…m` for the dimmed background. Blocks mode puts the top pixel in the foreground and the bottom pixel in the background of `▀` |
+| Export | Each character is drawn once into a glyph atlas; frames are then built in numpy (glyph mask × color over a dimmed background) and piped to ffmpeg, which muxes in the source audio |
 | Pace | The cursor jumps home (`ESC[H`) and the whole frame is written at once; playback sleeps to hold the frame rate and skips the wait when it's behind |
 
 ## Troubleshooting
