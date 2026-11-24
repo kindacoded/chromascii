@@ -65,7 +65,7 @@ ones (`. : -`), and contrast is stretched per frame, so even dull footage uses t
 **Then:**
 
 ```sh
-git clone https://github.com/JustUsingAI/chromascii
+git clone https://github.com/kindacoded/chromascii
 cd chromascii
 pip install -r requirements.txt
 python chromascii.py path/to/video.mp4
