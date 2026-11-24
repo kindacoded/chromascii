@@ -63,26 +63,36 @@ ones (`. : -`), and contrast is stretched per frame, so even dull footage uses t
 - A terminal with **true color**: Windows Terminal, iTerm2, Kitty, WezTerm, Alacritty, GNOME Terminal and most
   modern terminals.
 
-**Then:**
+**Then install the `chromascii` command:**
+
+```sh
+pip install git+https://github.com/kindacoded/chromascii
+chromascii path/to/video.mp4
+```
+
+Press `Ctrl` + `C` to stop. Prefer an isolated install? `pipx install git+https://github.com/kindacoded/chromascii`.
+
+> [!NOTE]
+> If `chromascii` isn't found after installing, pip put it in a folder that isn't on your PATH; pip prints
+> that folder in a warning. Add it to PATH, use `pipx`, or run `python -m chromascii` instead.
+
+**From source**, to hack on it:
 
 ```sh
 git clone https://github.com/kindacoded/chromascii
 cd chromascii
-pip install -r requirements.txt
-python chromascii.py path/to/video.mp4
+pip install -e .
 ```
-
-Press `Ctrl` + `C` to stop.
 
 ## Usage
 
 ```sh
-python chromascii.py clip.mp4                  # colored ASCII, fits your terminal
-python chromascii.py clip.mp4 -m blocks        # half-block pixels, sharpest
-python chromascii.py clip.mp4 -c dense         # 70-character set, most detail
-python chromascii.py clip.mp4 --loop -w 160    # loop it, 160 characters wide
-python chromascii.py clip.mp4 -o ascii.mp4     # save as a video, with sound
-python chromascii.py clip.mp4 -m blocks -o pixel.gif
+chromascii clip.mp4                  # colored ASCII, fits your terminal
+chromascii clip.mp4 -m blocks        # half-block pixels, sharpest
+chromascii clip.mp4 -c dense         # 70-character set, most detail
+chromascii clip.mp4 --loop -w 160    # loop it, 160 characters wide
+chromascii clip.mp4 -o ascii.mp4     # save as a video, with sound
+chromascii clip.mp4 -m blocks -o pixel.gif
 ```
 
 Exports are the same size as the source video by default (one character per 8 pixels), so a vertical
@@ -93,13 +103,13 @@ for bigger or smaller ones.
 
 | Look | Command |
 |---|---|
-| Best detail | `python chromascii.py clip.mp4 -c dense --bg 0.5 -w 180 --loop` |
-| Hacker / binary | `python chromascii.py clip.mp4 -c " 01" --bg 0 --boost 1.3 --loop` |
-| Painted | `python chromascii.py clip.mp4 -c blocks --bg 0.8 -w 120 --loop` |
-| 8-bit retro | `python chromascii.py clip.mp4 -w 50 --fps 12 --bg 0 --loop` |
-| Pure ASCII, black gaps | `python chromascii.py clip.mp4 --bg 0` |
-| Bubbly | `python chromascii.py clip.mp4 -c " .oO@"` |
-| Near-HD pixels | `python chromascii.py clip.mp4 -m blocks -w 200 --loop` |
+| Best detail | `chromascii clip.mp4 -c dense --bg 0.5 -w 180 --loop` |
+| Hacker / binary | `chromascii clip.mp4 -c " 01" --bg 0 --boost 1.3 --loop` |
+| Painted | `chromascii clip.mp4 -c blocks --bg 0.8 -w 120 --loop` |
+| 8-bit retro | `chromascii clip.mp4 -w 50 --fps 12 --bg 0 --loop` |
+| Pure ASCII, black gaps | `chromascii clip.mp4 --bg 0` |
+| Bubbly | `chromascii clip.mp4 -c " .oO@"` |
+| Near-HD pixels | `chromascii clip.mp4 -m blocks -w 200 --loop` |
 
 ## Options
 

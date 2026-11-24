@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chromascii"
+version = "0.2.0"
+description = "Play any video or GIF as full-color ASCII art in your terminal, or export it as an MP4 with the original sound."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.9"
+dependencies = ["numpy>=1.21", "pillow>=10.1"]
+keywords = ["ascii", "ascii-art", "terminal", "video", "gif", "ffmpeg", "truecolor"]
+classifiers = [
+    "Environment :: Console",
+    "Programming Language :: Python :: 3",
+    "Topic :: Multimedia :: Video",
+]
+
+[project.urls]
+Homepage = "https://github.com/kindacoded/chromascii"
+
+[project.scripts]
+chromascii = "chromascii:main"
+
+[tool.setuptools]
+py-modules = ["chromascii"]

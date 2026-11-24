@@ -1,0 +1,10 @@
+LICENSE
+README.md
+chromascii.py
+pyproject.toml
+chromascii.egg-info/PKG-INFO
+chromascii.egg-info/SOURCES.txt
+chromascii.egg-info/dependency_links.txt
+chromascii.egg-info/entry_points.txt
+chromascii.egg-info/requires.txt
+chromascii.egg-info/top_level.txt

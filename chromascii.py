@@ -159,7 +159,7 @@ def export(a, charset, src_w, src_h, fps):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Play a video or GIF as colored ASCII art.")
+    ap = argparse.ArgumentParser(prog="chromascii", description="Play a video or GIF as colored ASCII art.")
     ap.add_argument("input", help="video or GIF file (anything ffmpeg can read)")
     ap.add_argument("-w", "--width", type=int, help="width in characters (default: fit the terminal)")
     ap.add_argument("-m", "--mode", choices=["ascii", "blocks"], default="ascii",
