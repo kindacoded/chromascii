@@ -14,3 +14,7 @@ b = render_blocks(img)
 assert b.count("▀") == 2 and "\n" not in b, "two pixel rows fold into one text row"
 assert "\x1b[38;2;0;0;0m\x1b[48;2;255;0;0m▀" in b, "top = text color, bottom = background"
 print("ok")
+
+c = render_ascii(img, " @", bg=0.5)
+assert "\x1b[38;2;255;255;255m\x1b[48;2;127;127;127m@" in c, "background is the dimmed pixel color"
+print("bg ok")

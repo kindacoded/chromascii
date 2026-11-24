@@ -53,13 +53,21 @@ def frames(path, w, h, fps):
         proc.kill()
 
 
-def render_ascii(img, charset, boost=1.0):
+def render_ascii(img, charset, boost=1.0, bg=0.0):
+    """bg > 0 fills each cell's background with a dimmed copy of its color, so gaps between characters aren't black."""
     lum = img @ np.array([0.299, 0.587, 0.114])
-    idx = np.clip(lum / 255 * (len(charset) - 1) * boost, 0, len(charset) - 1).astype(int)
-    chars = np.array(list(charset))[idx]
+    lo, hi = np.percentile(lum, [2, 98])  # stretch contrast per frame so dull footage still uses the whole charset
+    norm = np.clip((lum - lo) / max(hi - lo, 1) * boost, 0, 1)
+    chars = np.array(list(charset))[(norm * (len(charset) - 1)).round().astype(int)]
     lines = []
-    for row_c, row_px in zip(chars, img):
-        lines.append("".join(f"\x1b[38;2;{r};{g};{b}m{c}" for c, (r, g, b) in zip(row_c, row_px.tolist())))
+    if bg > 0:
+        back = (img * bg).astype(np.uint8)
+        for row_c, row_px, row_bg in zip(chars, img.tolist(), back.tolist()):
+            lines.append("".join(f"\x1b[38;2;{r};{g};{b}m\x1b[48;2;{x};{y};{z}m{c}"
+                                 for c, (r, g, b), (x, y, z) in zip(row_c, row_px, row_bg)))
+    else:
+        for row_c, row_px in zip(chars, img.tolist()):
+            lines.append("".join(f"\x1b[38;2;{r};{g};{b}m{c}" for c, (r, g, b) in zip(row_c, row_px)))
     return "\x1b[0m\n".join(lines) + "\x1b[0m"
 
 
@@ -85,6 +93,8 @@ def main():
     ap.add_argument("--fps", type=float, help="playback frame rate (default: the video's, max 30)")
     ap.add_argument("--loop", action="store_true", help="loop until Ctrl+C")
     ap.add_argument("--boost", type=float, default=1.0, help="brighten the character choice, e.g. 1.5")
+    ap.add_argument("--bg", type=float, default=0.35,
+                    help="ascii mode: background fill strength, 0 = black background, 1 = full color")
     a = ap.parse_args()
 
     if not os.path.isfile(a.input):
@@ -116,7 +126,7 @@ def main():
         while True:
             start, n = time.perf_counter(), 0
             for img in frames(a.input, w, h, fps):
-                text = render_blocks(img) if a.mode == "blocks" else render_ascii(img, charset, a.boost)
+                text = render_blocks(img) if a.mode == "blocks" else render_ascii(img, charset, a.boost, a.bg)
                 out.write("\x1b[H" + text)
                 out.flush()
                 n += 1
